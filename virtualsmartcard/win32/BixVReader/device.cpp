@@ -98,7 +98,7 @@ void CMyDevice::ProcessIoControl(__in IWDFIoQueue*     pQueue,
         SectionLogger a(__FUNCTION__);
     UNREFERENCED_PARAMETER(pQueue);
     wchar_t log[300];
-    swprintf(log,L"[BixVReader][IOCT]IOCTL %08X - In %i Out %i",ControlCode,inBufSize,outBufSize);
+    swprintf(log,L"[BixVReader][IOCT]IOCTL %08X - In %zu Out %zu",ControlCode,inBufSize,outBufSize);
     OutputDebugString(log);
 
     //SectionLocker lock(m_RequestLock);

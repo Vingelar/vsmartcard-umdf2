@@ -167,7 +167,7 @@ DWORD TcpIpReader::startServer() {
 			if (AcceptSocket == INVALID_SOCKET)
 				return 0;
 
-			swprintf(log,L"[BixVReader]Socket connected:%i",AcceptSocket);
+			swprintf(log,L"[BixVReader]Socket connected:%zu",AcceptSocket);
 			OutputDebugString(log);
 
 			FD_ZERO(&readfds);
@@ -207,7 +207,7 @@ DWORD TcpIpReader::startServer() {
 			if (AcceptEventSocket == INVALID_SOCKET)
 				return 0;
 
-			swprintf(log,L"[BixVReader]Event Socket connected:%i",AcceptEventSocket);
+			swprintf(log,L"[BixVReader]Event Socket connected:%zu",AcceptEventSocket);
 			OutputDebugString(log);
 
 			if (!waitInsertIpr.empty()) {
