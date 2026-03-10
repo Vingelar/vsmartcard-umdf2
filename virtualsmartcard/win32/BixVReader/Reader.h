@@ -10,8 +10,6 @@ public:
 	CMyDevice *device;
 	std::vector< CComPtr<IWDFIoRequest> > waitRemoveIpr;
 	std::vector< CComPtr<IWDFIoRequest> > waitInsertIpr;
-	inbuf;
-	outbuf;
 
 	HANDLE serverThread;
 

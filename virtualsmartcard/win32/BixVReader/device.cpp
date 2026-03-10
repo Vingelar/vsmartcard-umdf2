@@ -1,5 +1,5 @@
 #include "internal.h"
-#include "VirtualSCReader.h"
+#include "VirtualSCReader_h.h"
 #include "queue.h"
 #include "device.h"
 #include "driver.h"

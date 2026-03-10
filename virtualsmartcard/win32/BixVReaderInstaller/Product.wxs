@@ -26,10 +26,9 @@
               <fire:FirewallException Id="virtual_card_reader_port" Name="virtual_card_reader_port"
                             Description="Port for virtual card reader" Port="35963"
                                 Profile="all" Protocol="tcp" Scope="any" /> 
-              <File Id="BixVReader.dll" Source="$(var.BixVReader.TargetDir)BixVReader\BixVReader.dll" />
-              <File Id="BixVReader.inf" Source="$(var.BixVReader.TargetDir)BixVReader\BixVReader.inf" />
-              <File Id="WudfUpdate_01011.dll" Source="$(var.BixVReader.TargetDir)BixVReader\WudfUpdate_01011.dll" />
-              <File Id="wudf.cat" Source="$(var.BixVReader.TargetDir)BixVReader\bixvreader.cat" />
+              <File Id="BixVReader.dll" Source="$(var.BixVReader.TargetDir)BixVReader.dll" />
+              <File Id="BixVReader.inf" Source="$(var.BixVReader.TargetDir)BixVReader.inf" />
+              <File Id="wudf.cat" Source="$(var.BixVReader.TargetDir)bixvreader.cat" />
             </Component>         
         </Directory>
       </Directory>

@@ -1,14 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Win32">
-      <Configuration>Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|Win32">
-      <Configuration>Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
@@ -52,7 +44,9 @@
     <ResourceCompile Include="BixVReader.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="BixVReader.inf" />
+    <None Include="BixVReader.inf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1D286E48-DE79-41FF-844B-56ED3764D4DA}</ProjectGuid>
@@ -60,31 +54,11 @@
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
     <Configuration>Debug</Configuration>
-    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <RootNamespace>BixVReader</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>WindowsUserModeDriver10.0</PlatformToolset>
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseOfAtl>Static</UseOfAtl>
-    <UMDF_VERSION_MAJOR>1</UMDF_VERSION_MAJOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsUserModeDriver10.0</PlatformToolset>
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseOfAtl>Static</UseOfAtl>
-    <UMDF_VERSION_MAJOR>1</UMDF_VERSION_MAJOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -92,7 +66,10 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseOfAtl>Static</UseOfAtl>
     <UMDF_VERSION_MAJOR>1</UMDF_VERSION_MAJOR>
+    <UMDF_VERSION_MINOR>9</UMDF_VERSION_MINOR>
+    <UmdfLibraryVersion>1.9</UmdfLibraryVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <DriverType>UMDF</DriverType>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -102,7 +79,10 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseOfAtl>Static</UseOfAtl>
     <UMDF_VERSION_MAJOR>1</UMDF_VERSION_MAJOR>
+    <UMDF_VERSION_MINOR>9</UMDF_VERSION_MINOR>
+    <UmdfLibraryVersion>1.9</UmdfLibraryVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <DriverType>UMDF</DriverType>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -113,50 +93,22 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <DebuggerFlavor>DbgengRemoteDebugger</DebuggerFlavor>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <DebuggerFlavor>DbgengRemoteDebugger</DebuggerFlavor>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengRemoteDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengRemoteDebugger</DebuggerFlavor>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">internal.h</WppScanConfigurationData>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <TreatWarningAsError>false</TreatWarningAsError>
-      <CallingConvention>
-      </CallingConvention>
-      <ShowIncludes>true</ShowIncludes>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <ModuleDefinitionFile>.\Exports.def</ModuleDefinitionFile>
-      <AdditionalDependencies>Ws2_32.lib</AdditionalDependencies>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">internal.h</WppScanConfigurationData>
-      <TreatWarningAsError>false</TreatWarningAsError>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <ModuleDefinitionFile>.\Exports.def</ModuleDefinitionFile>
-      <AdditionalDependencies>Ws2_32.lib</AdditionalDependencies>
-    </Link>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(WindowsSdkDir)Include\wdf\umdf\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR);
+        $(WindowsSdkDir)Include\shared;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
       <WppEnabled>true</WppEnabled>
+      <PreprocessorDefinitions>UMDF_VERSION_MAJOR=1;UMDF_VERSION_MINOR=9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">internal.h</WppScanConfigurationData>
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
@@ -168,7 +120,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(WindowsSdkDir)Include\wdf\umdf\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR);
+        $(WindowsSdkDir)Include\shared;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
       <WppEnabled>true</WppEnabled>
+      <PreprocessorDefinitions>UMDF_VERSION_MAJOR=1;UMDF_VERSION_MINOR=9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">internal.h</WppScanConfigurationData>
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
@@ -184,7 +143,40 @@
   <ItemGroup>
     <Midl Include="VirtualSCReader.idl" />
   </ItemGroup>
+  <ItemDefinitionGroup>
+    <Midl>
+      <AdditionalIncludeDirectories>
+        $(WindowsSdkDir)Include\wdf\umdf\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR);
+        $(WindowsSdkDir)Include\shared;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </Midl>
+  </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <!-- Auto passwordless test-signing for UMDF DLLs -->
+  <Target Name="AutoTestSignUMDF" AfterTargets="Build">
+    <PropertyGroup>
+      <StampinfPath>&quot;$(WindowsSDK_DesktopBinPath)Stampinf.exe&quot;</StampinfPath>
+      <Inf2CatPath>&quot;$(WindowsSDK_DesktopBinPath)inf2cat.exe&quot;</Inf2CatPath>
+      <SignToolPath>&quot;$(WindowsSDK_DesktopBinPath)signtool.exe&quot;</SignToolPath>
+      <Inf2CatOS>10_$(PlatformShortName),ServerRS5_$(PlatformShortName),ServerFE_$(PlatformShortName)</Inf2CatOS>
+    </PropertyGroup>
+    <Exec
+      Command="$(StampinfPath) -f BixVReader.inf -d * -v 1.0.0.0 -a $(PlatformShortName)"
+      WorkingDirectory="$(OutDir)"
+      />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-Content BixVReader.inf&quot;"
+      WorkingDirectory="$(OutDir)"
+      />
+    <Exec
+      Command="$(Inf2CatPath) /driver:. /os:$(Inf2CatOS) /verbose"
+      WorkingDirectory="$(OutDir)"
+      />
+    <Exec Command="$(SignToolPath) sign /fd SHA256 /v bixvreader.cat"
+      WorkingDirectory="$(OutDir)"
+      />
+  </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

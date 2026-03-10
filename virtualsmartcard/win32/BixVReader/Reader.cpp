@@ -1,5 +1,5 @@
 #include "internal.h"
-#include "VirtualSCReader.h"
+#include "VirtualSCReader_h.h"
 #include "reader.h"
 #include "device.h"
 #include <winscard.h>
