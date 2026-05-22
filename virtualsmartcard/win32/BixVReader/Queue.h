@@ -1,36 +1,15 @@
+//
+// queue.h - default I/O queue setup for the UMDF 2 port.
+//
 
 #pragma once
 
-class ATL_NO_VTABLE CMyQueue :
-    public CComObjectRootEx<CComMultiThreadModel>,
-    public IQueueCallbackDeviceIoControl
-{
-public:
-    virtual ~CMyQueue();
+#include "internal.h"
 
-    DECLARE_NOT_AGGREGATABLE(CMyQueue)
+EXTERN_C_START
 
-    BEGIN_COM_MAP(CMyQueue)
-        COM_INTERFACE_ENTRY(IQueueCallbackDeviceIoControl)
-    END_COM_MAP()
+NTSTATUS BixVReaderCreateDefaultQueue(_In_ WDFDEVICE Device, _Out_ WDFQUEUE* Queue);
 
-    static HRESULT CreateInstance(__in IWDFDevice* pWdfDevice, CMyDevice* pMyDevice);
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL BixVReaderEvtIoDeviceControl;
 
-protected:
-	CMyQueue();
-
-// COM Interface methods
-public:
-    // IQueueCallbackDeviceIoControl
-    STDMETHOD_ (void, OnDeviceIoControl)(
-        __in IWDFIoQueue*    pQueue,
-        __in IWDFIoRequest*  pRequest,
-        __in ULONG           ControlCode,
-        SIZE_T          InputBufferSizeInBytes,
-        SIZE_T          OutputBufferSizeInBytes
-        );
-
-private:
-    CMyDevice*          m_pParentDevice; // Parent device object
-};
-
+EXTERN_C_END

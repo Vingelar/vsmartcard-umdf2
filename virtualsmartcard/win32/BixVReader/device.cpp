@@ -1,337 +1,404 @@
+//
+// device.cpp - UMDF 2 device callbacks for BixVReader.
+//
+// Maps the COM-based UMDF 1.x logic onto the WDFDEVICE / WDFREQUEST handle
+// model used by UMDF 2.  The smart-card protocol logic stays in reader.cpp,
+// PipeReader.cpp, TcpIpReader.cpp and VpcdReader.cpp; this file is purely the
+// glue between the framework callbacks and that logic.
+//
+
 #include "internal.h"
-#include "VirtualSCReader_h.h"
-#include "queue.h"
-#include "device.h"
 #include "driver.h"
-#include <stdio.h>
-#include <winscard.h>
+#include "device.h"
+#include "queue.h"
+#include "reader.h"
 #include "memory.h"
-#include "SectionLocker.h"
+#include "sectionLocker.h"
 
-HRESULT
-CMyDevice::CreateInstance(
-                          __in IWDFDriver *FxDriver,
-                          __in IWDFDeviceInitialize * FxDeviceInit
-                          )
+#include <winscard.h>
+#include <winsock2.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-                          /*++
-
-                          Routine Description:
-
-                          This method creates and initializs an instance of the virtual smart card reader driver's
-                          device callback object.
-
-                          Arguments:
-
-                          FxDeviceInit - the settings for the device.
-
-                          Device - a location to store the referenced pointer to the device object.
-
-                          Return Value:
-
-                          Status
-
-                          --*/
+NTSTATUS
+BixVReaderEvtDriverDeviceAdd(
+    _In_    WDFDRIVER       Driver,
+    _Inout_ PWDFDEVICE_INIT DeviceInit)
 {
-    inFunc
-        SectionLogger a(__FUNCTION__);
-    CComObject<CMyDevice>* device = NULL;
-    HRESULT hr;
+    UNREFERENCED_PARAMETER(Driver);
 
-    OutputDebugString(L"[BixVReader]CreateInstance");    //
-    // Allocate a new instance of the device class.
-    //
-    hr = CComObject<CMyDevice>::CreateInstance(&device);
+    OutputDebugString(L"[BixVReader]EvtDriverDeviceAdd");
 
-    if (device==NULL)
-    {
-        return E_OUTOFMEMORY;
+    // Set up PnP/Power callbacks BEFORE creating the device.
+    WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
+    WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+    pnpCallbacks.EvtDevicePrepareHardware  = BixVReaderEvtDevicePrepareHardware;
+    pnpCallbacks.EvtDeviceReleaseHardware  = BixVReaderEvtDeviceReleaseHardware;
+    pnpCallbacks.EvtDeviceD0Entry          = BixVReaderEvtDeviceD0Entry;
+    pnpCallbacks.EvtDeviceD0Exit           = BixVReaderEvtDeviceD0Exit;
+    pnpCallbacks.EvtDeviceQueryRemove      = BixVReaderEvtDeviceQueryRemove;
+    pnpCallbacks.EvtDeviceQueryStop        = BixVReaderEvtDeviceQueryStop;
+    pnpCallbacks.EvtDeviceSurpriseRemoval  = BixVReaderEvtDeviceSurpriseRemoval;
+    WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpCallbacks);
+
+    // Per-device-context attributes.
+    WDF_OBJECT_ATTRIBUTES deviceAttributes;
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
+    deviceAttributes.EvtCleanupCallback = BixVReaderEvtDeviceContextCleanup;
+
+    WDFDEVICE device = NULL;
+    NTSTATUS  status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
+    if (!NT_SUCCESS(status)) {
+        wchar_t log[200];
+        swprintf_s(log, ARRAY_SIZE(log),
+                   L"[BixVReader]WdfDeviceCreate failed: 0x%08X", status);
+        OutputDebugString(log);
+        return status;
     }
 
-    //
-    // Initialize the instance.
-    //
-    device->AddRef();
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext(device);
+    ctx->WdfDevice    = device;
+    ctx->DefaultQueue = NULL;
+    ctx->Readers      = new std::vector<Reader*>();
+    ctx->NumInstances = 0;
+    InitializeCriticalSection(&ctx->RequestLock);
 
-    OutputDebugString(L"[BixVReader]SetLockingConstraint");    //
-    FxDeviceInit->SetLockingConstraint(WdfDeviceLevel);
-
-    CComPtr<IUnknown> spCallback;
-    OutputDebugString(L"[BixVReader]QueryInterface");    //
-    hr = device->QueryInterface(IID_IUnknown, (void**)&spCallback);
-
-    CComPtr<IWDFDevice> spIWDFDevice;
-    if (SUCCEEDED(hr))
-    {
-        OutputDebugString(L"[BixVReader]CreateDevice");    //
-        hr = FxDriver->CreateDevice(FxDeviceInit, spCallback, &spIWDFDevice);
+    // How many virtual readers does the .ini file ask for?
+    ctx->NumInstances =
+        GetPrivateProfileInt(L"Driver", L"NumReaders", 1, L"BixVReader.ini");
+    if (ctx->NumInstances < 1) {
+        ctx->NumInstances = 1;
     }
 
-    device->numInstances=GetPrivateProfileInt(L"Driver",L"NumReaders",1,L"BixVReader.ini");
-
-    WSADATA wsaData;
-    int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (iResult != NO_ERROR) {
-        OutputDebugString(L"[BixVReader]Error at WSAStartup()\n");
+    // Initialise Winsock once per device (the TCP and VPCD readers need it).
+    WSADATA wsa;
+    int wsaErr = WSAStartup(MAKEWORD(2, 2), &wsa);
+    if (wsaErr != 0) {
+        wchar_t log[200];
+        swprintf_s(log, ARRAY_SIZE(log),
+                   L"[BixVReader]WSAStartup failed: %d", wsaErr);
+        OutputDebugString(log);
     }
 
-    for (int i=0;i<device->numInstances;i++) {
-        OutputDebugString(L"[BixVReader]CreateDeviceInterface");    //
-        wchar_t name[10];
-        swprintf(name,L"DEV%i",i);
+    // Create one device interface per virtual reader instance, using "DEV<i>"
+    // as reference string so user mode can pick a specific one via the file
+    // name when opening the device.
+    for (int i = 0; i < ctx->NumInstances; ++i) {
+        wchar_t refString[16];
+        swprintf_s(refString, ARRAY_SIZE(refString), L"DEV%d", i);
 
-        if (spIWDFDevice->CreateDeviceInterface(&SmartCardReaderGuid,name)!=0)
-            OutputDebugString(L"[BixVReader]CreateDeviceInterface Failed");
+        // RtlInitUnicodeString lives in ntdll, but pulling that in just for
+        // this one call is wasteful - the struct is trivial to fill by hand.
+        UNICODE_STRING refStringUs;
+        size_t len = wcslen(refString);
+        refStringUs.Length        = (USHORT)(len * sizeof(WCHAR));
+        refStringUs.MaximumLength = (USHORT)((len + 1) * sizeof(WCHAR));
+        refStringUs.Buffer        = refString;
+
+        status = WdfDeviceCreateDeviceInterface(
+            device, &SmartCardReaderGuid, &refStringUs);
+        if (!NT_SUCCESS(status)) {
+            wchar_t log[200];
+            swprintf_s(log, ARRAY_SIZE(log),
+                       L"[BixVReader]WdfDeviceCreateDeviceInterface(%s) failed: 0x%08X",
+                       refString, status);
+            OutputDebugString(log);
+            return status;
+        }
     }
 
-    SAFE_RELEASE(device);
-    return hr;
+    // Default queue (parallel dispatch).  Our IOCTL handler dispatches to the
+    // appropriate Reader instance based on the file name on the request.
+    status = BixVReaderCreateDefaultQueue(device, &ctx->DefaultQueue);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    OutputDebugString(L"[BixVReader]EvtDriverDeviceAdd ok");
+    return STATUS_SUCCESS;
 }
 
-void CMyDevice::ProcessIoControl(__in IWDFIoQueue*     pQueue,
-                                 __in IWDFIoRequest*   pRequest,
-                                 __in ULONG            ControlCode,
-                                 SIZE_T           inBufSize,
-                                 SIZE_T           outBufSize)
+VOID
+BixVReaderEvtDeviceContextCleanup(
+    _In_ WDFOBJECT DeviceObject)
 {
-    inFunc
-        SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pQueue);
-    wchar_t log[300];
-    swprintf(log,L"[BixVReader][IOCT]IOCTL %08X - In %zu Out %zu",ControlCode,inBufSize,outBufSize);
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext((WDFDEVICE)DeviceObject);
+
+    OutputDebugString(L"[BixVReader]EvtDeviceContextCleanup");
+
+    // Belt-and-braces: make sure no readers are leaked if D0Exit didn't run.
+    if (ctx->Readers != nullptr) {
+        BixVReaderShutdownReaders(ctx);
+        delete ctx->Readers;
+        ctx->Readers = nullptr;
+    }
+    DeleteCriticalSection(&ctx->RequestLock);
+    WSACleanup();
+}
+
+NTSTATUS
+BixVReaderEvtDevicePrepareHardware(
+    _In_ WDFDEVICE Device,
+    _In_ WDFCMRESLIST ResourceList,
+    _In_ WDFCMRESLIST ResourceListTranslated)
+{
+    UNREFERENCED_PARAMETER(Device);
+    UNREFERENCED_PARAMETER(ResourceList);
+    UNREFERENCED_PARAMETER(ResourceListTranslated);
+    OutputDebugString(L"[BixVReader]EvtDevicePrepareHardware");
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BixVReaderEvtDeviceReleaseHardware(
+    _In_ WDFDEVICE Device,
+    _In_ WDFCMRESLIST ResourceListTranslated)
+{
+    UNREFERENCED_PARAMETER(Device);
+    UNREFERENCED_PARAMETER(ResourceListTranslated);
+    OutputDebugString(L"[BixVReader]EvtDeviceReleaseHardware");
+    return STATUS_SUCCESS;
+}
+
+static DWORD WINAPI ReaderServerThread(LPVOID p)
+{
+    Reader* r = reinterpret_cast<Reader*>(p);
+    return r->startServer();
+}
+
+NTSTATUS
+BixVReaderEvtDeviceD0Entry(
+    _In_ WDFDEVICE              Device,
+    _In_ WDF_POWER_DEVICE_STATE PreviousState)
+{
+    UNREFERENCED_PARAMETER(PreviousState);
+
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext(Device);
+
+    OutputDebugString(L"[BixVReader]EvtDeviceD0Entry");
+
+    // Re-read NumReaders here in case the .ini changed.
+    int n = GetPrivateProfileInt(L"Driver", L"NumReaders", 1, L"BixVReader.ini");
+    if (n < 1) n = 1;
+    ctx->NumInstances = n;
+    ctx->Readers->resize(static_cast<size_t>(n));
+
+    for (int i = 0; i < n; ++i) {
+        wchar_t section[64];
+        char    sectionA[64];
+        swprintf_s(section,  ARRAY_SIZE(section),  L"Reader%d", i);
+        sprintf_s(sectionA,  ARRAY_SIZE(sectionA),  "Reader%d",  i);
+
+        int rpcType = GetPrivateProfileInt(section, L"RPC_TYPE", 0, L"BixVReader.ini");
+        Reader* r = nullptr;
+        if      (rpcType == 0) r = new PipeReader();
+        else if (rpcType == 1) r = new TcpIpReader();
+        else if (rpcType == 2) r = new VpcdReader();
+        else                   r = new PipeReader();
+
+        r->instance   = i;
+        r->deviceCtx  = ctx;
+        GetPrivateProfileStringA(sectionA, "VENDOR_NAME",
+                                 "Bix", r->vendorName, sizeof r->vendorName,
+                                 "BixVReader.ini");
+        GetPrivateProfileStringA(sectionA, "VENDOR_IFD_TYPE",
+                                 "VIRTUAL_CARD_READER",
+                                 r->vendorIfdType, sizeof r->vendorIfdType,
+                                 "BixVReader.ini");
+        r->deviceUnit = GetPrivateProfileInt(section, L"DEVICE_UNIT", i, L"BixVReader.ini");
+        r->protocol   = 0;
+        r->init(section);
+
+        (*ctx->Readers)[i] = r;
+
+        DWORD threadId = 0;
+        r->serverThread = CreateThread(NULL, 0, ReaderServerThread, r, 0, &threadId);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BixVReaderEvtDeviceD0Exit(
+    _In_ WDFDEVICE              Device,
+    _In_ WDF_POWER_DEVICE_STATE TargetState)
+{
+    UNREFERENCED_PARAMETER(TargetState);
+
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext(Device);
+
+    OutputDebugString(L"[BixVReader]EvtDeviceD0Exit");
+
+    BixVReaderShutdownReaders(ctx);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BixVReaderEvtDeviceQueryRemove(_In_ WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext(Device);
+    OutputDebugString(L"[BixVReader]EvtDeviceQueryRemove");
+    BixVReaderShutdownReaders(ctx);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BixVReaderEvtDeviceQueryStop(_In_ WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext(Device);
+    OutputDebugString(L"[BixVReader]EvtDeviceQueryStop");
+    BixVReaderShutdownReaders(ctx);
+    return STATUS_SUCCESS;
+}
+
+VOID
+BixVReaderEvtDeviceSurpriseRemoval(_In_ WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT ctx = BixVReaderGetDeviceContext(Device);
+    OutputDebugString(L"[BixVReader]EvtDeviceSurpriseRemoval");
+    BixVReaderShutdownReaders(ctx);
+}
+
+VOID
+BixVReaderShutdownReaders(_In_ PDEVICE_CONTEXT ctx)
+{
+    if (!ctx || !ctx->Readers) return;
+
+    for (int i = 0; i < ctx->NumInstances; ++i) {
+        Reader* r = (*ctx->Readers)[i];
+        if (r) {
+            r->shutdown();
+            delete r;
+            (*ctx->Readers)[i] = nullptr;
+        }
+    }
+    ctx->NumInstances = 0;
+}
+
+//
+// Derive the instance index ("DEV%d") from the file name attached to the
+// request.  The trailing digits of the reference string are decoded.  Returns
+// 0 if anything is unparseable.
+//
+int BixVReaderInstanceFromRequest(_In_ WDFREQUEST Request)
+{
+    WDFFILEOBJECT fileObject = WdfRequestGetFileObject(Request);
+    if (fileObject == NULL) {
+        return 0;
+    }
+
+    PCUNICODE_STRING name = WdfFileObjectGetFileName(fileObject);
+    if (name == NULL || name->Length == 0 || name->Buffer == NULL) {
+        return 0;
+    }
+
+    // Walk back from the end and read trailing digits.
+    USHORT count = name->Length / sizeof(WCHAR);
+    USHORT end   = count;
+    while (end > 0 && name->Buffer[end - 1] >= L'0' && name->Buffer[end - 1] <= L'9') {
+        --end;
+    }
+    if (end == count) {
+        return 0;
+    }
+    return _wtoi(&name->Buffer[end]);
+}
+
+VOID
+BixVReaderProcessIoControl(
+    _In_ WDFQUEUE   Queue,
+    _In_ WDFREQUEST Request,
+    _In_ size_t     OutputBufferLength,
+    _In_ size_t     InputBufferLength,
+    _In_ ULONG      IoControlCode)
+{
+    UNREFERENCED_PARAMETER(Queue);
+
+    WDFDEVICE       device = WdfIoQueueGetDevice(Queue);
+    PDEVICE_CONTEXT ctx    = BixVReaderGetDeviceContext(device);
+
+    wchar_t log[200];
+    swprintf_s(log, ARRAY_SIZE(log),
+               L"[BixVReader][IOCT]IOCTL %08X - In %zu Out %zu",
+               IoControlCode, InputBufferLength, OutputBufferLength);
     OutputDebugString(log);
 
-    //SectionLocker lock(m_RequestLock);
-    int instance=0;
-    {
-        CComPtr<IWDFFile>   pFileObject;
-        pRequest->GetFileObject(&pFileObject);
+    int instance = BixVReaderInstanceFromRequest(Request);
+    if (instance < 0 || instance >= ctx->NumInstances ||
+        ctx->Readers == nullptr || (*ctx->Readers)[instance] == nullptr) {
+        WdfRequestCompleteWithInformation(Request, STATUS_INVALID_DEVICE_STATE, 0);
+        return;
+    }
 
-        if (pFileObject != NULL)
-        {
-            DWORD logLen=300;
-            pFileObject->RetrieveFileName(log,&logLen);
-            instance=_wtoi(log+(logLen-2));
-        }
-    }
-    Reader &reader=*readers[instance];
+    Reader& reader = *(*ctx->Readers)[instance];
 
-    if (ControlCode==IOCTL_SMARTCARD_GET_ATTRIBUTE) {
-        reader.IoSmartCardGetAttribute(pRequest,inBufSize,outBufSize);
-        return;
+    switch (IoControlCode) {
+        case IOCTL_SMARTCARD_GET_ATTRIBUTE:
+            reader.IoSmartCardGetAttribute(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_IS_PRESENT:
+            reader.IoSmartCardIsPresent(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_GET_STATE:
+            reader.IoSmartCardGetState(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_IS_ABSENT:
+            reader.IoSmartCardIsAbsent(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_POWER:
+            reader.IoSmartCardPower(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_SET_ATTRIBUTE:
+            reader.IoSmartCardSetAttribute(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_SET_PROTOCOL:
+            reader.IoSmartCardSetProtocol(Request, InputBufferLength, OutputBufferLength);
+            return;
+        case IOCTL_SMARTCARD_TRANSMIT:
+            reader.IoSmartCardTransmit(Request, InputBufferLength, OutputBufferLength);
+            return;
+        default:
+            swprintf_s(log, ARRAY_SIZE(log),
+                       L"[BixVReader][IOCT]ERROR_NOT_SUPPORTED:%08X", IoControlCode);
+            OutputDebugString(log);
+            WdfRequestCompleteWithInformation(Request, STATUS_NOT_SUPPORTED, 0);
+            return;
     }
-    else if (ControlCode==IOCTL_SMARTCARD_IS_PRESENT) {
-        reader.IoSmartCardIsPresent(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    else if (ControlCode==IOCTL_SMARTCARD_GET_STATE) {
-        reader.IoSmartCardGetState(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    else if (ControlCode==IOCTL_SMARTCARD_IS_ABSENT) {
-        reader.IoSmartCardIsAbsent(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    else if (ControlCode==IOCTL_SMARTCARD_POWER) {
-        reader.IoSmartCardPower(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    else if (ControlCode==IOCTL_SMARTCARD_SET_ATTRIBUTE) {
-        reader.IoSmartCardSetAttribute(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    else if (ControlCode==IOCTL_SMARTCARD_SET_PROTOCOL) {
-        reader.IoSmartCardSetProtocol(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    else if (ControlCode==IOCTL_SMARTCARD_TRANSMIT) {
-        reader.IoSmartCardTransmit(pRequest,inBufSize,outBufSize);
-        return;
-    }
-    swprintf(log,L"[BixVReader][IOCT]ERROR_NOT_SUPPORTED:%08X",ControlCode);
-    OutputDebugString(log);
-    pRequest->CompleteWithInformation(HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED), 0);
-
-    return;
 }
 
-
-DWORD WINAPI ServerFunc(Reader *reader) {
-    return reader->startServer();
-}
-
-
-/////////////////////////////////////////////////////////////////////////
 //
-// CMyDevice::OnPrepareHardware
+// EvtRequestCancel runs when an upper layer cancels a pending IS_PRESENT or
+// IS_ABSENT request.  The OwningReader is stored in the per-request context.
 //
-//  Called by UMDF to prepare the hardware for use.
-//
-// Parameters:
-//      pWdfDevice - pointer to an IWDFDevice object representing the
-//      device
-//
-// Return Values:
-//      S_OK: success
-//
-/////////////////////////////////////////////////////////////////////////
-
-HRESULT CMyDevice::OnPrepareHardware(
-                                     __in IWDFDevice* pWdfDevice
-                                     )
+VOID
+BixVReaderEvtRequestCancel(_In_ WDFREQUEST Request)
 {
-    inFunc
-        SectionLogger a(__FUNCTION__);
-    // Store the IWDFDevice pointer
-    m_pWdfDevice = pWdfDevice;
+    OutputDebugString(L"[BixVReader]EvtRequestCancel");
 
-    // Configure the default IO Queue
-    HRESULT hr = CMyQueue::CreateInstance(m_pWdfDevice, this);
+    PREQUEST_CONTEXT reqCtx = BixVReaderGetRequestContext(Request);
+    Reader*          reader = (reqCtx != nullptr) ? reqCtx->OwningReader : nullptr;
 
-    return hr;
-}
+    if (reader != nullptr) {
+        SectionLocker lock(reader->deviceCtx->RequestLock,
+                           const_cast<char*>(__FUNCTION__), __LINE__, reader);
 
-
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyDevice::OnReleaseHardware
-//
-// Called by WUDF to uninitialize the hardware.
-//
-// Parameters:
-//      pWdfDevice - pointer to an IWDFDevice object for the device
-//
-// Return Values:
-//      S_OK:
-//
-/////////////////////////////////////////////////////////////////////////
-HRESULT CMyDevice::OnReleaseHardware(
-                                     __in IWDFDevice* pWdfDevice
-                                     )
-{
-    inFunc
-        SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pWdfDevice);
-
-    // Release the IWDFDevice handle, if it matches
-    if (pWdfDevice == m_pWdfDevice.p)
-    {
-        m_pWdfDevice.Release();
-    }
-
-    return S_OK;
-}
-
-
-HRESULT CMyDevice::OnD0Entry(IN IWDFDevice*  pWdfDevice,IN WDF_POWER_DEVICE_STATE  previousState) {
-    SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pWdfDevice);
-    UNREFERENCED_PARAMETER(previousState);
-
-    numInstances=GetPrivateProfileInt(L"Driver",L"NumReaders",1,L"BixVReader.ini");
-    readers.resize(numInstances);
-
-    for (int i=0;i<numInstances;i++) {
-        wchar_t section[300];
-        char sectionA[300];
-        swprintf(section,L"Reader%i",i);
-        sprintf(sectionA,"Reader%i",i);
-
-        int rpcType=GetPrivateProfileInt(section,L"RPC_TYPE",0,L"BixVReader.ini");
-        if (rpcType==0)
-            readers[i]=new PipeReader();
-        else if (rpcType==1)
-            readers[i]=new TcpIpReader();
-        else if (rpcType==2)
-            readers[i]=new VpcdReader();
-
-        readers[i]->instance=i;
-        readers[i]->device=this;
-        GetPrivateProfileStringA(sectionA,"VENDOR_NAME","Bix",readers[i]->vendorName,sizeof readers[i]->vendorName,"BixVReader.ini");
-        GetPrivateProfileStringA(sectionA,"VENDOR_IFD_TYPE","VIRTUAL_CARD_READER",readers[i]->vendorIfdType,sizeof readers[i]->vendorIfdType,"BixVReader.ini");
-        readers[i]->deviceUnit=GetPrivateProfileInt(section,L"DEVICE_UNIT",i,L"BixVReader.ini");
-        readers[i]->protocol=0;
-
-        readers[i]->init(section);
-
-        DWORD pipeThreadID;
-        readers[i]->serverThread=CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)ServerFunc,readers[i],0,&pipeThreadID);
-    }
-
-    return S_OK;
-}
-HRESULT CMyDevice::OnD0Exit(IN IWDFDevice*  pWdfDevice,IN WDF_POWER_DEVICE_STATE  newState) {
-    SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pWdfDevice);
-    UNREFERENCED_PARAMETER(newState);
-    // dovrei fermare tutti i thread in ascolto dei lettori
-    shutDown();
-    return S_OK;
-}
-
-void CMyDevice::shutDown() {
-    SectionLogger a(__FUNCTION__);
-    for (int i=0;i<numInstances;i++) {
-        readers[i]->shutdown();
-        delete readers[i];
-    }
-    numInstances=0;
-}
-HRESULT CMyDevice::OnQueryRemove(IN IWDFDevice*  pWdfDevice) {
-    SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pWdfDevice);
-    OutputDebugString(L"[BixVReader]OnQueryRemove");
-    shutDown();
-    return S_OK;
-}
-HRESULT CMyDevice::OnQueryStop(IN IWDFDevice*  pWdfDevice) {
-    SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pWdfDevice);
-    OutputDebugString(L"[BixVReader]OnQueryStop");
-    shutDown();
-    return S_OK;
-}
-void CMyDevice::OnSurpriseRemoval(IN IWDFDevice*  pWdfDevice) {
-    SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pWdfDevice);
-    OutputDebugString(L"[BixVReader]OnSurpriseRemoval");
-    shutDown();
-}
-
-STDMETHODIMP_ (void) CMyDevice::OnCancel(IN IWDFIoRequest*  pWdfRequest) {
-    SectionLogger a(__FUNCTION__);
-
-    wchar_t log[300];
-    SectionLocker lock(m_RequestLock);
-
-    int instance=0;
-    {
-        CComPtr<IWDFFile>   pFileObject;
-        pWdfRequest->GetFileObject(&pFileObject);
-
-        if (pFileObject != NULL)
-        {
-            DWORD logLen=300;
-            pFileObject->RetrieveFileName(log,&logLen);
-            instance=_wtoi(log+(logLen-2));
+        for (auto it = reader->waitRemoveIpr.begin();
+             it != reader->waitRemoveIpr.end(); ++it) {
+            if (*it == Request) {
+                OutputDebugString(L"[BixVReader]Cancel Remove");
+                reader->waitRemoveIpr.erase(it);
+                break;
+            }
+        }
+        for (auto it = reader->waitInsertIpr.begin();
+             it != reader->waitInsertIpr.end(); ++it) {
+            if (*it == Request) {
+                OutputDebugString(L"[BixVReader]Cancel Insert");
+                reader->waitInsertIpr.erase(it);
+                break;
+            }
         }
     }
-    Reader &reader=*readers[instance];
 
-    for (std::vector< CComPtr<IWDFIoRequest> >::iterator it = reader.waitRemoveIpr.begin();
-            it != reader.waitRemoveIpr.end(); it++) {
-        if (pWdfRequest == *it) {
-            OutputDebugString(L"[BixVReader]Cancel Remove");
-            reader.waitRemoveIpr.erase(it);
-        }
-    }
-    for (std::vector< CComPtr<IWDFIoRequest> >::iterator it = reader.waitInsertIpr.begin();
-            it != reader.waitInsertIpr.end(); it++) {
-        if (pWdfRequest == *it) {
-            OutputDebugString(L"[BixVReader]Cancel Insert");
-            reader.waitInsertIpr.erase(it);
-        }
-    }
-    pWdfRequest->CompleteWithInformation(HRESULT_FROM_WIN32(ERROR_CANCELLED), 0);
+    WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0);
 }
-

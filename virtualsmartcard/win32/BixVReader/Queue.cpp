@@ -1,124 +1,46 @@
+//
+// queue.cpp - default I/O queue for the UMDF 2 port.
+//
+// All IOCTLs land here.  We forward to BixVReaderProcessIoControl which then
+// dispatches to the right Reader instance based on the file name attached to
+// the request.
+//
+
 #include "internal.h"
-#include "Device.h"
-#include "Queue.h"
-#include "SectionLocker.h"
+#include "device.h"
+#include "queue.h"
 
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyQueue::CMyQueue
-//
-// Object constructor function
-//
-// Initialize member variables
-//
-/////////////////////////////////////////////////////////////////////////
-CMyQueue::CMyQueue() :
-    m_pParentDevice(NULL)
+NTSTATUS
+BixVReaderCreateDefaultQueue(_In_ WDFDEVICE Device, _Out_ WDFQUEUE* Queue)
 {
-}
+    WDF_IO_QUEUE_CONFIG cfg;
+    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&cfg, WdfIoQueueDispatchParallel);
 
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyQueue::~CMyQueue
-//
-// Object destructor function
-//
-//
-/////////////////////////////////////////////////////////////////////////
-CMyQueue::~CMyQueue()
-{
-    // Release the reference that was incremented in CreateInstance()
-    SAFE_RELEASE(m_pParentDevice);   
-}
+    cfg.PowerManaged           = WdfFalse;
+    cfg.AllowZeroLengthRequests = TRUE;
+    cfg.EvtIoDeviceControl     = BixVReaderEvtIoDeviceControl;
 
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyQueue::CreateInstance
-//
-// This function supports the COM factory creation system
-//
-// Parameters:
-//      parentDevice    - A pointer to the CWSSDevice object
-//      ppUkwn          - pointer to a pointer to the queue to be returned
-//
-// Return Values:
-//      S_OK: The queue was created successfully
-//
-/////////////////////////////////////////////////////////////////////////
-HRESULT CMyQueue::CreateInstance(__in IWDFDevice*  pWdfDevice, CMyDevice* pMyDevice)
-{
-	inFunc
-	SectionLogger a(__FUNCTION__);
-    CComObject<CMyQueue>* pMyQueue = NULL;
-
-    if(NULL == pMyDevice)
-    {
-        return E_INVALIDARG;
+    NTSTATUS status = WdfIoQueueCreate(Device, &cfg, WDF_NO_OBJECT_ATTRIBUTES, Queue);
+    if (!NT_SUCCESS(status)) {
+        wchar_t log[200];
+        swprintf_s(log, ARRAY_SIZE(log),
+                   L"[BixVReader]WdfIoQueueCreate failed: 0x%08X", status);
+        OutputDebugString(log);
+    } else {
+        OutputDebugString(L"[BixVReader]IoQueue Created");
     }
-
-    HRESULT hr = CComObject<CMyQueue>::CreateInstance(&pMyQueue);
-
-    if(SUCCEEDED(hr))
-    {
-        // AddRef the object
-        pMyQueue->AddRef();
-
-        // Store the parent device object
-        pMyQueue->m_pParentDevice = pMyDevice;
-
-        // Increment the reference for the lifetime of the CMyQueue object.
-        pMyQueue->m_pParentDevice->AddRef();
-
-        CComPtr<IUnknown> spIUnknown;
-        hr = pMyQueue->QueryInterface(IID_IUnknown, (void**)&spIUnknown);
-
-        if(SUCCEEDED(hr))
-        {
-            // Create the framework queue
-            CComPtr<IWDFIoQueue> spDefaultQueue;
-            hr = pWdfDevice->CreateIoQueue( spIUnknown,
-                                            TRUE,                        // DefaultQueue
-                                            WdfIoQueueDispatchParallel,  // Parallel queue handling 
-                                            FALSE,                       // PowerManaged
-                                            TRUE,                        // AllowZeroLengthRequests
-                                            &spDefaultQueue 
-                                            );
-            if (FAILED(hr))
-            {
-				OutputDebugString (L"[BixVReader]IoQueue NOT Created\n");
-            }
-			else
-				OutputDebugString (L"[BixVReader]IoQueue Created\n");
-
-        }
-
-        // Release the pMyQueue pointer when done. Note: UMDF holds a reference to it above
-        SAFE_RELEASE(pMyQueue);
-    }
-
-    return hr;
+    return status;
 }
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyQueue::OnDeviceIoControl
-//
-// This method is called when an IOCTL is sent to the device
-//
-// Parameters:
-//      pQueue            - pointer to an IO queue
-//      pRequest          - pointer to an IO request
-//      ControlCode       - The IOCTL to process
-//      InputBufferSizeInBytes - the size of the input buffer
-//      OutputBufferSizeInBytes - the size of the output buffer
-//
-/////////////////////////////////////////////////////////////////////////
-STDMETHODIMP_ (void) CMyQueue::OnDeviceIoControl(
-    __in IWDFIoQueue*     pQueue,
-    __in IWDFIoRequest*   pRequest,
-    __in ULONG            ControlCode,
-         SIZE_T           InputBufferSizeInBytes,
-         SIZE_T           OutputBufferSizeInBytes
-    )
+
+VOID
+BixVReaderEvtIoDeviceControl(
+    _In_ WDFQUEUE   Queue,
+    _In_ WDFREQUEST Request,
+    _In_ size_t     OutputBufferLength,
+    _In_ size_t     InputBufferLength,
+    _In_ ULONG      IoControlCode)
 {
-	m_pParentDevice->ProcessIoControl(pQueue,pRequest,ControlCode,InputBufferSizeInBytes,OutputBufferSizeInBytes);    
+    BixVReaderProcessIoControl(Queue, Request,
+                               OutputBufferLength, InputBufferLength,
+                               IoControlCode);
 }

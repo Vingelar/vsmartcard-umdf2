@@ -21,4 +21,5 @@ class SectionLogger {
 	~SectionLogger();
 };
 
-#define lock(x) lockObj(x,__FUNCTION__,__LINE__,NULL)
+// (the historical "#define lock(x) lockObj(...)" macro was removed - it
+// clashed with the explicit 4-argument SectionLocker constructor calls.)

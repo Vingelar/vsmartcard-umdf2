@@ -1,98 +1,58 @@
+//
+// device.h - per-device context and WDF callbacks for the UMDF 2 port.
+//
+
 #pragma once
 
+#include "internal.h"
 #include <vector>
-#include "reader.h"
+
+class Reader;
+
+// Per-device context attached to every WDFDEVICE we create.
+typedef struct _DEVICE_CONTEXT {
+    WDFDEVICE        WdfDevice;
+    WDFQUEUE         DefaultQueue;
+    CRITICAL_SECTION RequestLock;
+    std::vector<Reader*>* Readers;
+    int              NumInstances;
+} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, BixVReaderGetDeviceContext)
+
+// Per-request context.  We use it from the cancel callback to remove the
+// request from whichever reader's wait-list it had been parked on.
+typedef struct _REQUEST_CONTEXT {
+    Reader* OwningReader;
+} REQUEST_CONTEXT, *PREQUEST_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(REQUEST_CONTEXT, BixVReaderGetRequestContext)
+
+EXTERN_C_START
+
+EVT_WDF_DEVICE_PREPARE_HARDWARE  BixVReaderEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE  BixVReaderEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY          BixVReaderEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT           BixVReaderEvtDeviceD0Exit;
+EVT_WDF_DEVICE_QUERY_REMOVE      BixVReaderEvtDeviceQueryRemove;
+EVT_WDF_DEVICE_QUERY_STOP        BixVReaderEvtDeviceQueryStop;
+EVT_WDF_DEVICE_SURPRISE_REMOVAL  BixVReaderEvtDeviceSurpriseRemoval;
+EVT_WDF_DEVICE_CONTEXT_CLEANUP   BixVReaderEvtDeviceContextCleanup;
+EVT_WDF_REQUEST_CANCEL           BixVReaderEvtRequestCancel;
+
+VOID BixVReaderProcessIoControl(
+    _In_ WDFQUEUE   Queue,
+    _In_ WDFREQUEST Request,
+    _In_ size_t     OutputBufferLength,
+    _In_ size_t     InputBufferLength,
+    _In_ ULONG      IoControlCode);
+
+VOID BixVReaderShutdownReaders(_In_ PDEVICE_CONTEXT ctx);
+
+EXTERN_C_END
 
 //
-// Class for the iotrace driver.
+// Convenience accessor: derive the instance index ("DEV%i") from the file name
+// associated with a request.  Returns 0 if the file name cannot be parsed.
 //
-class CMyDevice;
-
-
-class ATL_NO_VTABLE CMyDevice :
-    public CComObjectRootEx<CComMultiThreadModel>,
-    public IPnpCallbackHardware,
-	public IPnpCallback,
-	public IRequestCallbackCancel
-{
-public:
-	~CMyDevice() {
-        DeleteCriticalSection(&m_RequestLock);
-	}
-
-    DECLARE_NOT_AGGREGATABLE(CMyDevice)
-
-    BEGIN_COM_MAP(CMyDevice)
-        COM_INTERFACE_ENTRY(IPnpCallbackHardware)
-        COM_INTERFACE_ENTRY(IPnpCallback)
-		COM_INTERFACE_ENTRY(IRequestCallbackCancel)
-    END_COM_MAP()
-
-    CMyDevice(VOID)
-    {
-        InitializeCriticalSection(&m_RequestLock);
-        m_pWdfDevice = NULL;
-    }
-
-	//
-// Private data members.
-//
-private:
-
-    CComPtr<IWDFDevice>     m_pWdfDevice;
-	std::vector<Reader*> readers;
-	int numInstances;
-
-//
-// Private methods.
-//
-
-private:
-
-
-	HRESULT ConfigureQueue();
-
-	//
-// Public methods
-//
-public:
-
-    CRITICAL_SECTION        m_RequestLock;
-
-    //
-    // The factory method used to create an instance of this driver.
-    //
-    
-    static
-    HRESULT CreateInstance(
-        __in IWDFDriver *FxDriver,
-        __in IWDFDeviceInitialize *FxDeviceInit
-        );
-
-//
-// COM methods
-//
-public:
-
-    //
-    // IUnknown methods.
-    //
-
-	void  ProcessIoControl(__in IWDFIoQueue*     pQueue,
-                                    __in IWDFIoRequest*   pRequest,
-                                    __in ULONG            ControlCode,
-                                         SIZE_T           InputBufferSizeInBytes,
-                                         SIZE_T           OutputBufferSizeInBytes);
-
-    STDMETHOD_ (HRESULT, OnPrepareHardware)(__in IWDFDevice* pWdfDevice);
-    STDMETHOD_ (HRESULT, OnReleaseHardware)(__in IWDFDevice* pWdfDevice);
-    STDMETHOD_ (HRESULT, OnD0Entry)(IN IWDFDevice*  pWdfDevice,IN WDF_POWER_DEVICE_STATE  previousState);
-    STDMETHOD_ (HRESULT, OnD0Exit )(IN IWDFDevice*  pWdfDevice,IN WDF_POWER_DEVICE_STATE  newState);
-    STDMETHOD_ (HRESULT, OnQueryRemove )(IN IWDFDevice*  pWdfDevice);
-    STDMETHOD_ (HRESULT, OnQueryStop)(IN IWDFDevice*  pWdfDevice);
-    STDMETHOD_ (void, OnSurpriseRemoval)(IN IWDFDevice*  pWdfDevice);
-    STDMETHOD_ (void, OnCancel)(IN IWDFIoRequest*  pWdfRequest);
-
-	void shutDown();
-};
-
+int BixVReaderInstanceFromRequest(_In_ WDFREQUEST Request);

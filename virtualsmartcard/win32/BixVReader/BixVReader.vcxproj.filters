@@ -59,9 +59,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Exports.def">
-      <Filter>Source Files</Filter>
-    </None>
     <ClCompile Include="Device.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -75,9 +72,6 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DllMain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -105,10 +99,5 @@
     <ClCompile Include="..\..\src\vpcd\vpcd.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Midl Include="VirtualSCReader.idl">
-      <Filter>Source Files</Filter>
-    </Midl>
   </ItemGroup>
 </Project>

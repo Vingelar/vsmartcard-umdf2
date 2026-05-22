@@ -11,14 +11,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Exports.def" />
-    <None Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\..\src\vpcd\lock.c" />
     <ClCompile Include="..\..\src\vpcd\vpcd.c" />
     <ClCompile Include="Device.cpp" />
-    <ClCompile Include="DllMain.cpp" />
     <ClCompile Include="Driver.cpp" />
     <ClCompile Include="memory.cpp" />
     <ClCompile Include="PipeReader.cpp" />
@@ -51,7 +46,6 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1D286E48-DE79-41FF-844B-56ED3764D4DA}</ProjectGuid>
     <TemplateGuid>{2177f19c-eb4c-4687-9e7f-f9eec1f12cf1}</TemplateGuid>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
@@ -64,10 +58,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>WindowsUserModeDriver10.0</PlatformToolset>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseOfAtl>Static</UseOfAtl>
-    <UMDF_VERSION_MAJOR>1</UMDF_VERSION_MAJOR>
-    <UMDF_VERSION_MINOR>9</UMDF_VERSION_MINOR>
-    <UmdfLibraryVersion>1.9</UmdfLibraryVersion>
+    <UmdfLibraryVersion>2.33</UmdfLibraryVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <DriverType>UMDF</DriverType>
     <CharacterSet>Unicode</CharacterSet>
@@ -77,10 +68,7 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsUserModeDriver10.0</PlatformToolset>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseOfAtl>Static</UseOfAtl>
-    <UMDF_VERSION_MAJOR>1</UMDF_VERSION_MAJOR>
-    <UMDF_VERSION_MINOR>9</UMDF_VERSION_MINOR>
-    <UmdfLibraryVersion>1.9</UmdfLibraryVersion>
+    <UmdfLibraryVersion>2.33</UmdfLibraryVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <DriverType>UMDF</DriverType>
     <CharacterSet>Unicode</CharacterSet>
@@ -92,7 +80,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengRemoteDebugger</DebuggerFlavor>
   </PropertyGroup>
@@ -101,58 +88,31 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(WindowsSdkDir)Include\wdf\umdf\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR);
-        $(WindowsSdkDir)Include\shared;
-        $(IntDir);
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
-      <WppEnabled>true</WppEnabled>
-      <PreprocessorDefinitions>UMDF_VERSION_MAJOR=1;UMDF_VERSION_MINOR=9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">internal.h</WppScanConfigurationData>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)Include\wdf\umdf\2.33;$(WindowsSdkDir)Include\shared;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UMDF_VERSION_MAJOR=2;UMDF_VERSION_MINOR=33;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <ModuleDefinitionFile>.\Exports.def</ModuleDefinitionFile>
-      <AdditionalDependencies>Ws2_32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(WindowsSdkDir)Lib\$(TargetPlatformVersion)\um\$(PlatformShortName);$(WindowsSdkDir)Lib\wdf\umdf\$(PlatformShortName)\2.33;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>WdfDriverStubUm.lib;ntdll.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(WindowsSdkDir)Include\wdf\umdf\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR);
-        $(WindowsSdkDir)Include\shared;
-        $(IntDir);
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
-      <WppEnabled>true</WppEnabled>
-      <PreprocessorDefinitions>UMDF_VERSION_MAJOR=1;UMDF_VERSION_MINOR=9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">internal.h</WppScanConfigurationData>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)Include\wdf\umdf\2.33;$(WindowsSdkDir)Include\shared;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UMDF_VERSION_MAJOR=2;UMDF_VERSION_MINOR=33;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <ModuleDefinitionFile>.\Exports.def</ModuleDefinitionFile>
-      <AdditionalDependencies>Ws2_32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(WindowsSdkDir)Lib\$(TargetPlatformVersion)\um\$(PlatformShortName);$(WindowsSdkDir)Lib\wdf\umdf\$(PlatformShortName)\2.33;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>WdfDriverStubUm.lib;ntdll.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
-  <ItemGroup>
-    <Midl Include="VirtualSCReader.idl" />
-  </ItemGroup>
-  <ItemDefinitionGroup>
-    <Midl>
-      <AdditionalIncludeDirectories>
-        $(WindowsSdkDir)Include\wdf\umdf\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR);
-        $(WindowsSdkDir)Include\shared;
-        $(IntDir);
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
-    </Midl>
-  </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- Test-signing configuration: self-signed cert auto-generated by EnsureTestCert.ps1 -->
   <PropertyGroup>
@@ -172,13 +132,14 @@
       <StampinfPath>&quot;$(WindowsSDK_DesktopBinPath)Stampinf.exe&quot;</StampinfPath>
       <Inf2CatPath>&quot;$(WindowsSDK_DesktopBinPath)inf2cat.exe&quot;</Inf2CatPath>
       <SignToolPath>&quot;$(WindowsSDK_DesktopBinPath)signtool.exe&quot;</SignToolPath>
-      <Inf2CatOS>10_$(PlatformShortName),ServerRS5_$(PlatformShortName),ServerFE_$(PlatformShortName)</Inf2CatOS>
+      <!-- Must match the .10.0...17763 TargetOSVersion decoration in the INF -->
+      <Inf2CatOS>10_RS5_X64,ServerRS5_X64</Inf2CatOS>
     </PropertyGroup>
     <Exec
       Command="$(SignToolPath) sign /fd SHA256 /f &quot;$(TestCertPfx)&quot; /p $(TestCertPassword) /v &quot;$(TargetPath)&quot;"
       />
     <Exec
-      Command="$(StampinfPath) -f BixVReader.inf -d * -v 1.0.0.0 -a $(PlatformShortName)"
+      Command="$(StampinfPath) -f BixVReader.inf -d * -v 1.0.0.0 -a $(PlatformShortName) -u 2.33.0"
       WorkingDirectory="$(OutDir)"
       />
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-Content BixVReader.inf&quot;"

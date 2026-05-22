@@ -1,10 +1,14 @@
+//
+// memory.h - tiny helpers around WDFREQUEST input/output buffers.
+//
+
 #pragma once
+
 #include "internal.h"
 #include "device.h"
 
-
-bool getBuffer(IWDFIoRequest* pRequest,void **buffer,SIZE_T *bufferLen);
-void setString(CMyDevice *device,IWDFIoRequest* pRequest,char *result,SIZE_T outSize);
-void setBuffer(CMyDevice *device,IWDFIoRequest* pRequest,void *result,SIZE_T inSize);
-void setInt(CMyDevice *device,IWDFIoRequest* pRequest,DWORD result);
-DWORD getInt(IWDFIoRequest* pRequest);
+bool  getBuffer(WDFREQUEST request, void **buffer, size_t *bufferLen);
+void  setString(PDEVICE_CONTEXT ctx, WDFREQUEST request, const char *result, size_t outSize);
+void  setBuffer(PDEVICE_CONTEXT ctx, WDFREQUEST request, const void *result, size_t inSize);
+void  setInt   (PDEVICE_CONTEXT ctx, WDFREQUEST request, DWORD result);
+DWORD getInt   (WDFREQUEST request);

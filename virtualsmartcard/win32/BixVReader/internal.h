@@ -1,76 +1,43 @@
+//
+// internal.h - common pre-compiled header for the UMDF 2 port of BixVReader.
+//
+// The UMDF 1.x version of this driver was COM/ATL based (IDriverEntry,
+// IPnpCallback, IQueueCallbackDeviceIoControl, ...).  UMDF 2 uses the same
+// handle/callback model as KMDF (WDFDRIVER, WDFDEVICE, WDFREQUEST and
+// EVT_WDF_* function pointers), so this header pulls in <wdf.h> instead of
+// <wudfddi.h> and drops every COM/ATL reference.
+//
 
 #pragma once
 
 #define WIN32_LEAN_AND_MEAN
+
+//
+// <wdf.h> drags in wudfwdm.h, which expects to use kernel-mode NTSTATUS
+// definitions from <ntstatus.h>.  The Win32 headers (windows.h via winnt.h)
+// have a small subset of the same constants, which would collide.  The
+// standard "WIN32_NO_STATUS" trick keeps both happy.
+//
+#define WIN32_NO_STATUS
 #include <windows.h>
-#include <atlbase.h>
-#include <atlcom.h>
-#include <atlstr.h>
+#undef  WIN32_NO_STATUS
+#include <ntstatus.h>
 
-//__user_driver;  // Macro letting the compiler know this is not a kernel driver (this will help surpress needless warnings)
+#include <devioctl.h>
 
-// Common WPD and WUDF headers
+#include <wdf.h>
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
 
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p)     {if ((p)) { (p)->Release(); (p) = NULL; }}
-#endif
-
-#define STATUS_SUCCESS                          ((NTSTATUS)0x00000000L) // ntsubauth
-#define STATUS_NO_MEDIA							((NTSTATUS)0xC0000178L) 
-#define STATUS_INVALID_DEVICE_STATE				((NTSTATUS)0xC0000184L)
-
-
 //
-// Include the WUDF DDI 
+// SmartCard-reader class device interface GUID.  The GUID *data* is emitted
+// in exactly one translation unit (driver.cpp) which includes <initguid.h>
+// before this header.  Everywhere else we just want the extern declaration.
 //
-#include <devioctl.h>
-#include <initguid.h>
-#include <propkeydef.h>
-#include <propvarutil.h>
-#include "PortableDeviceTypes.h"
-#include "PortableDeviceClassExtension.h"
-#include "PortableDevice.h"
-
-#include "wudfddi.h"
-
-//
-// Use specstrings for in/out annotation of function parameters.
-//
+EXTERN_C const GUID SmartCardReaderGuid;
 
 #include "specstrings.h"
 
-//
-// Forward definitions of classes in the other header files.
-//
-
-typedef class CMyDriver *PCMyDriver;
-typedef class CMyDevice *PCMyDevice;
-
-//
-DEFINE_GUID(SmartCardReaderGuid, 0x50DD5230, 0xBA8A, 0x11D1, 0xBF,0x5D,0x00,0x00,0xF8,0x05,0xF5,0x30);
-//
-// Include the type specific headers.
-//
-
-//class funcTrace {
-//public:
-//	TCHAR funcN[500];
-//	funcTrace (char *func) {
-//		TCHAR funcName[500];
-//		wsprintf(funcN, _T("%S"), func);
-//		wsprintf(funcName, _T("[BixVReader]IN -> %s"), funcN);
-//		OutputDebugString(funcName);
-//	}
-//	~funcTrace () {
-//		TCHAR funcName[500];
-//		wsprintf(funcName, _T("[BixVReader]OUT -> %s"), funcN);
-//		OutputDebugString(funcName);
-//	}
-//};
-
-//#define inFunc funcTrace _ftrace(__FUNCTION__);
 #define inFunc

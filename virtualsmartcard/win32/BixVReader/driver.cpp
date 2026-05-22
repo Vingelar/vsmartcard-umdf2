@@ -1,75 +1,55 @@
+//
+// driver.cpp - WDFDRIVER bootstrap for the UMDF 2 port of BixVReader.
+//
+// DriverEntry is the new entry point.  It replaces the COM-based IDriverEntry
+// (CMyDriver) that the UMDF 1.x version used.  All per-device setup happens
+// in BixVReaderEvtDriverDeviceAdd, which is called by the framework once for
+// each device instance that PnP enumerates for our service.
+//
+
+#include <initguid.h>
 #include "internal.h"
-#include "VirtualSCReader_h.h"
 #include "driver.h"
 #include "device.h"
-#include <stdio.h>
-#include "SectionLocker.h"
 
-CMyDriver::CMyDriver()
+// Emit storage for the SmartCardReader class GUID exactly once.
+DEFINE_GUID(SmartCardReaderGuid,
+            0x50DD5230, 0xBA8A, 0x11D1, 0xBF, 0x5D, 0x00, 0x00, 0xF8, 0x05, 0xF5, 0x30);
+
+EXTERN_C
+NTSTATUS
+DriverEntry(
+    _In_ PDRIVER_OBJECT  DriverObject,
+    _In_ PUNICODE_STRING RegistryPath)
 {
-	inFunc
+    WDF_DRIVER_CONFIG     config;
+    WDF_OBJECT_ATTRIBUTES attributes;
+
+    OutputDebugString(L"[BixVReader]DriverEntry");
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.EvtCleanupCallback = BixVReaderEvtDriverContextCleanup;
+
+    WDF_DRIVER_CONFIG_INIT(&config, BixVReaderEvtDriverDeviceAdd);
+
+    NTSTATUS status = WdfDriverCreate(DriverObject,
+                                      RegistryPath,
+                                      &attributes,
+                                      &config,
+                                      WDF_NO_HANDLE);
+    if (!NT_SUCCESS(status)) {
+        wchar_t log[200];
+        swprintf_s(log, ARRAY_SIZE(log),
+                   L"[BixVReader]WdfDriverCreate failed: 0x%08X", status);
+        OutputDebugString(log);
+    }
+    return status;
 }
 
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyDriver::OnDeviceAdd
-//
-// The framework call this function when device is detected. This driver
-// creates a device callback object
-//
-// Parameters:
-//      pDriver     - pointer to an IWDFDriver object
-//      pDeviceInit - pointer to a device initialization object
-//
-// Return Values:
-//      S_OK: device initialized successfully
-//
-/////////////////////////////////////////////////////////////////////////
-HRESULT CMyDriver::OnDeviceAdd(
-    __in IWDFDriver* pDriver,
-    __in IWDFDeviceInitialize* pDeviceInit
-    )
+VOID
+BixVReaderEvtDriverContextCleanup(
+    _In_ WDFOBJECT DriverObject)
 {
-	inFunc
-	SectionLogger a(__FUNCTION__);
-    HRESULT hr = CMyDevice::CreateInstance(pDriver, pDeviceInit);
-
-    return hr;
+    UNREFERENCED_PARAMETER(DriverObject);
+    OutputDebugString(L"[BixVReader]EvtDriverContextCleanup");
 }
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyDriver::OnInitialize
-//
-//  The framework calls this function just after loading the driver. The driver
-//  can perform any global, device independent intialization in this routine.
-//
-/////////////////////////////////////////////////////////////////////////
-HRESULT CMyDriver::OnInitialize(
-    __in IWDFDriver* pDriver
-    )
-{
-	inFunc
-	SectionLogger a(__FUNCTION__);
-    UNREFERENCED_PARAMETER(pDriver);
-    return S_OK;
-}
-
-/////////////////////////////////////////////////////////////////////////
-//
-// CMyDriver::OnDeinitialize
-//
-//  The framework calls this function just before de-initializing itself. All
-//  WDF framework resources should be released by driver before returning
-//  from this call.
-//
-/////////////////////////////////////////////////////////////////////////
-void CMyDriver::OnDeinitialize(
-    __in IWDFDriver* pDriver
-    )
-{
-	inFunc
- 	SectionLogger a(__FUNCTION__);
-   UNREFERENCED_PARAMETER(pDriver);
-    return;
-}
-

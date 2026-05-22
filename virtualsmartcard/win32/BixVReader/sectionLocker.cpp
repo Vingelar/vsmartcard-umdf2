@@ -1,4 +1,5 @@
 #include "sectionLocker.h"
+#include <stdio.h>
 void *ShowMe=NULL;
 SectionLocker::SectionLocker(CRITICAL_SECTION &critsection,char *function,int line,void* object) {
 	critsection;
