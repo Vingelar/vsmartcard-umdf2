@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Directory.Build.props for the BixVReader solution.
+
+This file is auto-imported by MSBuild for every project beneath this directory
+and points the WiX 3.x build infrastructure (DevMsi.vcxproj + BixVReaderInstaller.wixproj)
+at a portable WiX 3.14 toolset that is extracted on demand into .tools\wix314.
+That way the build doesn't depend on an MSI-installed WiX 3.x being present.
+
+The WDK + Windows SDK paths used by BixVReader.vcxproj still come from the
+machine-wide install at "C:\Program Files (x86)\Windows Kits\10".
+-->
+<Project>
+  <PropertyGroup>
+    <WixPortableRoot>$(MSBuildThisFileDirectory).tools\wix314\</WixPortableRoot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="Exists('$(WixPortableRoot)wix.targets')">
+    <WIX>$(WixPortableRoot)</WIX>
+    <WixInstallPath>$(WixPortableRoot)</WixInstallPath>
+    <WixToolPath>$(WixPortableRoot)</WixToolPath>
+    <WixExtDir>$(WixPortableRoot)</WixExtDir>
+    <WixTasksPath>$(WixPortableRoot)WixTasks.dll</WixTasksPath>
+    <WixTargetsPath>$(WixPortableRoot)wix.targets</WixTargetsPath>
+  </PropertyGroup>
+</Project>
