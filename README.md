@@ -12,7 +12,7 @@ Currently the following projects are part of Virtual Smart Card Architecture:
 - [PC/SC Relay](http://frankmorgner.github.io/vsmartcard/pcsc-relay/README.html)
 - [USB CCID Emulator](http://frankmorgner.github.io/vsmartcard/ccid/README.html)
 
-Please refer to [our project's website](http://frankmorgner.github.io/vsmartcard) for more information.
+Please refer to [the original project's website](http://frankmorgner.github.io/vsmartcard) for more information.
 
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/Vingelar/vsmartcard-umdf2/ci.yml?branch=master&label=Linux%2FmacOS&logo=github)](https://github.com/Vingelar/vsmartcard-umdf2/actions/workflows/ci.yml)
 
