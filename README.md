@@ -14,7 +14,6 @@ Currently the following projects are part of Virtual Smart Card Architecture:
 
 Please refer to [the original project's website](http://frankmorgner.github.io/vsmartcard) for more information.
 
-[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/Vingelar/vsmartcard-umdf2/ci.yml?branch=master&label=Linux%2FmacOS&logo=github)](https://github.com/Vingelar/vsmartcard-umdf2/actions/workflows/ci.yml)
 
 The Windows `BixVReader` driver is not built in CI; it is built locally on Windows 11
 (see [Building BixVReader](#building-bixvreader-the-windows-umdf-driver-on-windows-11) below).
