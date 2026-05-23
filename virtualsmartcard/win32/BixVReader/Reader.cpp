@@ -13,6 +13,11 @@
 #include "sectionLocker.h"
 
 #include <winscard.h>
+
+#ifndef SCARD_CHANNEL_TYPE_PCSC
+#define SCARD_CHANNEL_TYPE_PCSC 0x00000002
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
