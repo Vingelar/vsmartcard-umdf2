@@ -289,13 +289,17 @@ on that machine.
   code-signing certificate and submit the driver package to the Microsoft
   Partner Center for WHQL/HLK attestation signing.
 
-### Known runtime issues (unrelated to the build)
+### Windows 11 reader registration (fixed)
 
-- On Windows 11 22H2 and newer the smart-card resource manager
-  (`SCardSvr`) calls `IoSmartCardGetAttribute(SCARD_ATTR_CURRENT_PROTOCOL_TYPE = 0x00020110)`
-  immediately after device discovery. The current `Reader::IoSmartCardGetAttribute`
-  implementation falls through to `default:` and returns `ERROR_NOT_SUPPORTED`,
-  which causes Windows 11 to abort the reader registration (see upstream
-  issue [#324](https://github.com/frankmorgner/vsmartcard/issues/324)).
-  This is a *source-level* bug, not a build-system problem, and is left
-  unchanged in this fork.
+Upstream v0.10 failed to register the virtual reader on Windows 11 22H2 and
+newer because `SCardSvr` queries `SCARD_ATTR_CHANNEL_ID` (`0x00020110`) during
+device discovery. That attribute is **not** `SCARD_ATTR_CURRENT_PROTOCOL_TYPE`
+(which is `0x00030201` and was already implemented). When `CHANNEL_ID` was
+unsupported, the resource manager aborted reader registration (see upstream
+issue [#324](https://github.com/frankmorgner/vsmartcard/issues/324)).
+
+This fork implements `SCARD_ATTR_CHANNEL_ID` in
+`Reader::IoSmartCardGetAttribute`, returning a PC/SC channel identifier derived
+from the device unit number. That does **not** mean the driver was completely
+non-functional on Windows 11 before — only that registration could fail at
+startup if this attribute was missing.

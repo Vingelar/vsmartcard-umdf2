@@ -301,6 +301,13 @@ void Reader::IoSmartCardGetAttribute(WDFREQUEST request, size_t inBufSize, size_
             }
             return;
 
+
+        case SCARD_ATTR_CHANNEL_ID:
+            // DWORD 0xDDDDCCCC: channel type in high word, channel number in low word
+            OutputDebugString(L"[BixVReader][GATT]SCARD_ATTR_CHANNEL_ID");
+            setInt(deviceCtx, request, (SCARD_CHANNEL_TYPE_PCSC << 16) | ((DWORD)deviceUnit & 0xFFFF));
+            return;
+
         case SCARD_ATTR_CHARACTERISTICS:
             OutputDebugString(L"[BixVReader][GATT]SCARD_ATTR_CHARACTERISTICS");
             setInt(deviceCtx, request, 0);
