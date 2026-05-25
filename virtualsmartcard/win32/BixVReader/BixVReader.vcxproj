@@ -130,19 +130,21 @@
   <Target Name="AutoTestSignUMDF" AfterTargets="Build">
     <PropertyGroup>
       <StampinfPath>&quot;$(WindowsSDK_DesktopBinPath)Stampinf.exe&quot;</StampinfPath>
-      <Inf2CatPath>&quot;$(WindowsSDK_DesktopBinPath)inf2cat.exe&quot;</Inf2CatPath>
+      <Inf2CatPath>&quot;$(WindowsKitsRoot)bin\$(WindowsSDKVersion)\x86\Inf2Cat.exe&quot;</Inf2CatPath>
       <SignToolPath>&quot;$(WindowsSDK_DesktopBinPath)signtool.exe&quot;</SignToolPath>
-      <!-- Must match the .10.0...17763 TargetOSVersion decoration in the INF -->
-      <Inf2CatOS>10_RS5_X64,ServerRS5_X64</Inf2CatOS>
+      <InfArch Condition="'$(Platform)'=='x64'">amd64</InfArch>
+      <InfArch Condition="'$(Platform)'=='Win32'">x86</InfArch>
+      <Inf2CatOS>10_$(PlatformShortName),ServerRS5_$(PlatformShortName),ServerFE_$(PlatformShortName)</Inf2CatOS>
     </PropertyGroup>
     <Exec
       Command="$(SignToolPath) sign /fd SHA256 /f &quot;$(TestCertPfx)&quot; /p $(TestCertPassword) /v &quot;$(TargetPath)&quot;"
       />
     <Exec
-      Command="$(StampinfPath) -f BixVReader.inf -d * -v 1.0.0.0 -a $(PlatformShortName) -u 2.33.0"
+      Command="$(StampinfPath) -f BixVReader.inf -d * -v 1.0.0.0 -a $(InfArch) -u 2.33.0"
       WorkingDirectory="$(OutDir)"
       />
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-Content BixVReader.inf&quot;"
+    <Exec
+      Command="powershell -NoProfile -Command &quot;$p='$(OutDir)BixVReader.inf'; $t=[System.IO.File]::ReadAllText($p); [System.IO.File]::WriteAllText($p, $t, [System.Text.Encoding]::ASCII)&quot;"
       WorkingDirectory="$(OutDir)"
       />
     <Exec

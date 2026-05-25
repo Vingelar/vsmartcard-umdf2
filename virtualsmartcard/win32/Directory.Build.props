@@ -11,9 +11,12 @@ The WDK + Windows SDK paths used by BixVReader.vcxproj still come from the
 machine-wide install at "C:\Program Files (x86)\Windows Kits\10".
 -->
 <Project>
-  <PropertyGroup>
-    <WixPortableRoot>$(MSBuildThisFileDirectory).tools\wix314\</WixPortableRoot>
-  </PropertyGroup>
+    <PropertyGroup>
+      <WixPortableRoot>$(MSBuildThisFileDirectory).tools\wix314\</WixPortableRoot>
+      <WindowsKitsRoot Condition="'$(WindowsKitsRoot)'==''">C:\Program Files (x86)\Windows Kits\10\</WindowsKitsRoot>
+      <WindowsSDKVersion Condition="'$(WindowsSDKVersion)'==''">10.0.26100.0</WindowsSDKVersion>
+      <WindowsSDK_DesktopBinPath Condition="'$(WindowsSDK_DesktopBinPath)'==''">$(WindowsKitsRoot)bin\$(WindowsSDKVersion)\x64\</WindowsSDK_DesktopBinPath>
+    </PropertyGroup>
 
   <PropertyGroup Condition="Exists('$(WixPortableRoot)wix.targets')">
     <WIX>$(WixPortableRoot)</WIX>

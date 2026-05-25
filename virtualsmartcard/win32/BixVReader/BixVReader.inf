@@ -13,7 +13,7 @@ DriverVer   = ; populated by stampinf during build
 [Manufacturer]
 %ManufacturerName%=Standard,NTamd64
 
-[Standard.NT$ARCH$]
+[Standard.NTamd64]
 %DeviceName%=VReader_Install,root\BixVirtualReader
 
 [SourceDisksNames]

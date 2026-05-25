@@ -34,3 +34,6 @@ BixVReader/BixVReader/
 # The CER is regenerated on every fresh build, so keep it out of the repo too.
 TestCert/
 BixVReader.cer
+*.log
+BixVReaderInstaller.msi
+install*.log
