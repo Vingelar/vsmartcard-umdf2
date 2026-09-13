@@ -1,3 +1,6 @@
+**Developed with [Cursor AI](https://cursor.com)**
+
+[![Developed with Cursor AI](https://img.shields.io/badge/developed%20with-Cursor%20AI-000000)](https://cursor.com)
 # Virtual Smart Card Architecture
 
 Virtual Smart Card Architecture is an umbrella project for various
